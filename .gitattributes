@@ -1,1 +1,8 @@
 dist/* linguist-vendored=false
+
+*.css linguist-detectable=true
+*.java linguist-detectable=true
+*.python linguist-detectable=true 
+*.js linguist-detectable=true
+*.html linguist-detectable=true  
+*.xml linguist-detectable=true 
