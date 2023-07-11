@@ -1,9 +1,4 @@
-function validityChecker(numbers) {
-    x1 = numbers[0];
-    y1 = numbers[1];
-    x2 = numbers[2];
-    y2 = numbers[3];
-
+function validityChecker(x1, y1, x2, y2) {
     if (check(x1, y1, 0, 0)) {
         console.log(`{${x1}, ${y1}} to {0, 0} is valid`)
     } else {
@@ -27,5 +22,5 @@ function validityChecker(numbers) {
 
 
 
-validityChecker([3, 0, 0, 4])
-validityChecker([2, 1, 1, 1])
+validityChecker(3, 0, 0, 4)
+validityChecker(2, 1, 1, 1)
