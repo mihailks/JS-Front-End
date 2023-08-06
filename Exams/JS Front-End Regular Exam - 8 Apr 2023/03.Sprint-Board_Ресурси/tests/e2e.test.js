@@ -10,30 +10,26 @@ const mockData = {
   list: [
     {
       title: 'Bug 1',
-      type: 'Short',
-      description: 'My first course 1',
-      teacher: 'Teacher1',
+      description: 'My first bug',
+      status: 'ToDo',
       _id: '1001',
     },
     {
       title: 'Bug 2',
-      type: 'Medium',
-      description: 'My first course 2',
-      teacher: 'Teacher2',
+      description: 'My second bug',
+      status: 'In Progress',
       _id: '1002',
     },
     {
       title: 'Bug 3',
-      type: 'Long',
-      description: 'My first course 3',
-      teacher: 'Teacher3',
+      description: 'My third bug',
+      status: 'Code Review',
       _id: '1003',
     },
     {
       title: 'Bug 4',
-      type: 'Short',
-      description: 'My first course 4',
-      teacher: 'Teacher4',
+      description: 'My fourth bug',
+      status: 'Done',
       _id: '1004',
     },
   ],
@@ -53,9 +49,9 @@ describe('E2E tests', function () {
   this.timeout(DEBUG ? 120000 : 7000);
   before(
     async () =>
-    (browser = await chromium.launch(
-      DEBUG ? { headless: false, slowMo } : {}
-    ))
+      (browser = await chromium.launch(
+        DEBUG ? { headless: false, slowMo } : {}
+      ))
   );
   after(async () => await browser.close());
   beforeEach(async () => {
@@ -68,124 +64,138 @@ describe('E2E tests', function () {
     await context.close();
   });
 
-  describe('Course Planner Tests', () => {
-    it('Load Course', async () => {
+  describe('Sprint Board Tests', () => {
+    it('Load Board (loads all in correct categories)', async () => {
       const data = mockData.list;
+      const [ firstTask, secondTask, thirdTask, fourthTask ] = data;
       const { get } = await handle(endpoints.catalog);
       get(data);
 
       await page.goto(host);
-      await page.waitForSelector('#load-course');
+      await page.waitForSelector('#load-board-btn');
 
-      await page.click('#load-course');
+      await page.click('#load-board-btn');
 
-      const list = await page.$$eval(`#progress-course #list .container`, (t) =>
+      const [ todoTask ] = await page.$$eval(`#todo-section li`, (t) =>
         t.map((s) => s.textContent)
       );
-      expect(list.length).to.equal(data.length);
+      const [ inProgressTask ] = await page.$$eval(`#in-progress-section li`, (t) =>
+        t.map((s) => s.textContent)
+      );
+      const [ codeReviewTask ] = await page.$$eval(`#code-review-section li`, (t) =>
+        t.map((s) => s.textContent)
+      );
+      const [ doneTask ] = await page.$$eval(`#done-section li`, (t) =>
+        t.map((s) => s.textContent)
+      );
 
+      expect(todoTask).to.equal(`${firstTask.title}${firstTask.description}Move to In Progress`);
+      expect(inProgressTask).to.equal(`${secondTask.title}${secondTask.description}Move to Code Review`);
+      expect(codeReviewTask).to.equal(`${thirdTask.title}${thirdTask.description}Move to Done`);
+      expect(doneTask).to.equal(`${fourthTask.title}${fourthTask.description}Close`);
     });
 
-    it('Create Course', async () => {
+    it('Create Task (successful create & clear inputs)', async () => {
       const data = mockData.list[0];
       await page.goto(host);
 
       const { post } = await handle(endpoints.catalog);
       const { onRequest } = post();
 
-      await page.waitForSelector('#form');
-      await page.fill('#course-name', data.title);
-      await page.fill('#course-type', data.type);
-      await page.fill('#description', data.description);
-      await page.fill('#teacher-name', data.teacher);
+      await page.waitForSelector('#title');
+      await page.waitForSelector('#description');
+
+      await page.fill('#title', data.title + '1');
+      await page.fill('#description', data.description + '1');
 
       const [request] = await Promise.all([
         onRequest(),
-        page.click('#add-course'),
+        page.click('#create-task-btn'),
       ]);
 
       const postData = JSON.parse(request.postData());
-      
-      expect(postData.title).to.equal(data.title);
-      expect(postData.type).to.equal(data.type);
-      expect(postData.description).to.equal(data.description);
-      expect(postData.teacher).to.equal(data.teacher);
 
-      const [courseName] = await page.$$eval(`#course-name`, (t) =>
+      const [ titleValue ] = await page.$$eval(`#title`, (t) =>
         t.map((s) => s.value)
       );
-      const [courseLength] = await page.$$eval(`#course-type`, (t) =>
-        t.map((s) => s.value)
-      );
-      const [descriptionValue] = await page.$$eval(`#description`, (t) =>
-        t.map((s) => s.value)
-      );
-      const [courseTeacher] = await page.$$eval(`#teacher-name`, (t) =>
+      const [ descriptionValue ] = await page.$$eval(`#description`, (t) =>
         t.map((s) => s.value)
       );
 
-      expect(courseName).to.equal('');
-      expect(courseLength).to.equal('');
+      expect(postData.title).to.equal(data.title + '1');
+      expect(postData.description).to.equal(data.description + '1');
+      expect(titleValue).to.equal('');
       expect(descriptionValue).to.equal('');
-      expect(courseTeacher).to.equal('');
     });
-
-    it('Edit Course (Has Input)', async () => {
-      await page.goto(host);
-      const data = mockData.list[0];
-
-      await page.click('#load-course');
-      await page.waitForSelector('#list');
-      await page.click('#list .container .edit-btn');
-
-      const allCourse = await page.$$eval(`#form input`, (t) =>
-        t.map((s) => s.value)
-      );
-
-      const allCourseText = await page.$$eval(`#form textarea`, (t) =>
-        t.map((s) => s.value)
-      );
-
-      expect(allCourse[0]).to.include(data.title);
-      expect(allCourse[1]).to.include(data.type);
-      expect(allCourse[2]).to.include(data.teacher);
-      expect(allCourseText[0]).to.include(data.description);
-    });
-
-    it('Edit Course (Makes API Call)', async () => {
+    
+    it('Move Task (from ToDo to In Progress)', async () => {
       const data = mockData.list[0];
       await page.goto(host);
       const { patch } = await handle(endpoints.byId(data._id));
       const { onRequest } = patch({ id: data._id });
 
-      await page.click('#load-course');
-      await page.waitForSelector('#list');
-      await page.click('#list .container .edit-btn');
-      await page.fill('#course-name', data.title + '2');
-
+      await page.click('#load-board-btn');
+      await page.waitForSelector('#todo-section li button');
       const [request] = await Promise.all([
         onRequest(),
-        page.click('#edit-course'),
+        page.click('#todo-section li button'),
       ]);
 
       const postData = JSON.parse(request.postData());
-      expect(postData.title).to.equal(data.title + '2');
+
+      expect(postData.status).to.equal('In Progress');
     });
 
-    it('Finish Course', async () => {
-      const data = mockData.list[0];
+    it('Move Task (from In Progress to Code Review)', async () => {
+      const data = mockData.list[1];
+      await page.goto(host);
+      const { patch } = await handle(endpoints.byId(data._id));
+      const { onRequest } = patch({ id: data._id });
+
+      await page.click('#load-board-btn');
+      await page.waitForSelector('#in-progress-section li button');
+      const [request] = await Promise.all([
+        onRequest(),
+        page.click('#in-progress-section li button'),
+      ]);
+
+      const postData = JSON.parse(request.postData());
+
+      expect(postData.status).to.equal('Code Review');
+    });
+
+    it('Move Task (from Code Review to Done)', async () => {
+      const data = mockData.list[2];
+      await page.goto(host);
+      const { patch } = await handle(endpoints.byId(data._id));
+      const { onRequest } = patch({ id: data._id });
+
+      await page.click('#load-board-btn');
+      await page.waitForSelector('#code-review-section li button');
+      const [request] = await Promise.all([
+        onRequest(),
+        page.click('#code-review-section li button'),
+      ]);
+
+      const postData = JSON.parse(request.postData());
+
+      expect(postData.status).to.equal('Done');
+    });
+
+    it('Close Task', async () => {
+      const data = mockData.list[3];
       await page.goto(host);
       const { del } = await handle(endpoints.byId(data._id));
       const { onResponse, isHandled } = del({ id: data._id });
 
-      await page.click('#load-course');
+      await page.click('#load-board-btn');
 
-      await page.waitForSelector('#list');
+      await page.waitForSelector('#done-section li button');
 
       await Promise.all([
         onResponse(),
         page.click(
-          `#list .container .finish-btn`
+          '#done-section li button'
         ),
       ]);
 
@@ -248,7 +258,7 @@ async function handleRaw(match, handlers) {
     } else {
       handler(route, request);
     }
-  }); ``
+  });``
 
   if (handlers) {
     for (let method in handlers) {
